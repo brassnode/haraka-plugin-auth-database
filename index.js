@@ -1,24 +1,145 @@
 'use strict'
 
-exports.register = function () {
-  this.load_auth_database_ini()
+const { verify_password_hash } = require('./lib/password_parser')
+const DatabaseConnection = require('./lib/database_connection')
+const SmtpUser = require('./lib/entities/smtp_user')
 
-  // register hooks here. More info at https://haraka.github.io/core/Plugins/
-  // this.register_hook('data_post', 'do_stuff_with_message')
+exports.register = function () {
+  this.inherits('auth/auth_base')
+  this.load_auth_database_ini()
+  this.register_hook('capabilities', 'advertise_auth')
+  this.initialize_database()
 }
 
 exports.load_auth_database_ini = function () {
   this.cfg = this.config.get(
     'auth_database.ini',
     {
-      booleans: [
-        '+enabled', // this.cfg.main.enabled=true
-        '-disabled', // this.cfg.main.disabled=false
-        '+feature_section.yes', // this.cfg.feature_section.yes=true
-      ],
+      booleans: ['+main.enabled', '+database.logging'],
     },
     () => {
       this.load_auth_database_ini()
     }
   )
+}
+
+exports.initialize_database = async function () {
+  const config = this.cfg.database
+  try {
+    this.data_source = await DatabaseConnection.get_data_source(config)
+    this.smtpUser = this.data_source.getRepository(SmtpUser)
+    this.loginfo(`connected to database at ${config.host}:${config.port}`)
+  } catch (error) {
+    this.logerror(`failed to initialize database: ${error.message}`)
+  }
+}
+
+exports.advertise_auth = function (next, connection) {
+  this.loginfo('Advertising AUTH capabilities')
+  connection.capabilities.push('AUTH PLAIN LOGIN')
+  connection.notes.allowed_auth_methods = ['PLAIN', 'LOGIN']
+  next()
+}
+
+exports.check_plain_passwd = function (connection, user, passwd, cb) {
+  connection.loginfo(this, `check_plain_passwd called for user: ${user}`)
+  this.check_user_password(user, passwd, (err, result) => {
+    if (err) {
+      connection.logerror(this, `auth error: ${err.message}`)
+      return cb(false)
+    }
+    if (result) {
+      // Store authenticated user in connection notes for other plugins
+      connection.notes.auth_user = user
+    }
+    connection.loginfo(this, `auth result for ${user}: ${result}`)
+    cb(result)
+  })
+}
+
+exports.check_cram_md5_passwd = function (connection, user, passwd, cb) {
+  connection.loginfo(this, `check_cram_md5_passwd called for user: ${user}`)
+  this.get_user_password(user, (err, stored_passwd) => {
+    if (err || !stored_passwd) {
+      connection.logerror(this, `Failed to get password for ${user}`)
+      return cb(false)
+    }
+    const result = passwd === stored_passwd
+    if (result) {
+      // Store authenticated user in connection notes for other plugins
+      connection.notes.auth_user = user
+    }
+    cb(result)
+  })
+}
+
+exports.check_user_password = async function (username, password, callback) {
+  this.loginfo(`checking username: ${username}`)
+
+  try {
+    const user = await this.smtpUser.findOne({
+      where: {
+        username: username,
+        deleted_at: null,
+      },
+    })
+
+    if (!user) {
+      this.loginfo(`user not found: ${username}`)
+      return callback(null, false)
+    }
+
+    this.loginfo(`user found: ${username}, checking password...`)
+
+    const passwordMatch = await this.verify_password(password, user.password)
+
+    if (passwordMatch) {
+      await this.smtpUser.update({ id: user.id }, { last_used_at: new Date() })
+      this.loginfo(`authentication successful for ${username}`)
+    } else {
+      this.loginfo(`authentication failed for ${username}`)
+    }
+
+    callback(null, passwordMatch)
+  } catch (error) {
+    this.logerror(`database error: ${error.message}`)
+    callback(error, false)
+  }
+}
+
+exports.get_user_password = async function (username, callback) {
+  try {
+    const user = await this.smtpUser.findOne({
+      where: {
+        username: username,
+        deleted_at: null,
+      },
+      select: ['password'],
+    })
+
+    if (!user) {
+      return callback(new Error('user not found'))
+    }
+
+    callback(null, user.password)
+  } catch (error) {
+    callback(error)
+  }
+}
+
+exports.verify_password = async function (plain_password, hashed_password) {
+  try {
+    const passed = await verify_password_hash(plain_password, hashed_password)
+    return passed
+  } catch (error) {
+    this.logerror(`password verification error: ${error.message}`)
+    return false
+  }
+}
+
+exports.shutdown = function () {
+  this.loginfo('plugin shutting down')
+  DatabaseConnection.close_connection().catch((err) => {
+    this.logerror(`error closing database connection: ${err.message}`)
+  })
 }

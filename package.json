@@ -38,5 +38,8 @@
   "prettier": {
     "singleQuote": true,
     "semi": false
+  },
+  "dependencies": {
+    "typeorm": "^0.3.26"
   }
 }
