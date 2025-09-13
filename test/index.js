@@ -8,23 +8,23 @@ const fixtures = require('haraka-test-fixtures')
 //    assert: https://nodejs.org/api/assert.html
 
 beforeEach(() => {
-  this.plugin = new fixtures.plugin('template')
+  this.plugin = new fixtures.plugin('auth_database')
 })
 
-describe('template', () => {
+describe('auth_database', () => {
   it('loads', () => {
     assert.ok(this.plugin)
   })
 })
 
-describe('load_template_ini', () => {
-  it('loads template.ini from config/template.ini', () => {
-    this.plugin.load_template_ini()
+describe('load_auth_database_ini', () => {
+  it('loads auth_database.ini from config/auth_database.ini', () => {
+    this.plugin.load_auth_database_ini()
     assert.ok(this.plugin.cfg)
   })
 
   it('initializes enabled boolean', () => {
-    this.plugin.load_template_ini()
+    this.plugin.load_auth_database_ini()
     assert.equal(this.plugin.cfg.main.enabled, true, this.plugin.cfg)
   })
 })

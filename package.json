@@ -1,7 +1,7 @@
 {
-  "name": "haraka-plugin-template",
+  "name": "haraka-plugin-auth-database",
   "version": "1.0.1",
-  "description": "Haraka plugin that...CHANGE THIS",
+  "description": "Haraka auth plugin that authenticate users using database",
   "main": "index.js",
   "files": [
     "CHANGELOG.md",
@@ -19,18 +19,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/haraka/haraka-plugin-template.git"
+    "url": "git+https://github.com/haraka/haraka-plugin-auth_database.git"
   },
   "keywords": [
     "haraka-plugin",
-    "template"
+    "auth-database"
   ],
   "author": "Welcome Member <happy-haraka-hacker@example.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/haraka/haraka-plugin-template/issues"
+    "url": "https://github.com/haraka/haraka-plugin-auth-database/issues"
   },
-  "homepage": "https://github.com/haraka/haraka-plugin-template#readme",
+  "homepage": "https://github.com/haraka/haraka-plugin-auth-database#readme",
   "devDependencies": {
     "@haraka/eslint-config": "^2.0.2",
     "haraka-test-fixtures": "^1.3.8"
