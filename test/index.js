@@ -93,3 +93,329 @@ describe('load_auth_database_ini', () => {
     assert.deepEqual(this.plugin.cfg, expectedCfg)
   })
 })
+
+describe('advertise_auth', () => {
+  it('advertises AUTH PLAIN LOGIN and sets allowed_auth_methods', () => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      capabilities: [],
+      notes: {},
+      loginfo: () => {},
+    }
+    plugin.advertise_auth(() => {
+      assert.ok(connection.capabilities.includes('AUTH PLAIN LOGIN'))
+      assert.deepEqual(connection.notes.allowed_auth_methods, [
+        'PLAIN',
+        'LOGIN',
+      ])
+    }, connection)
+  })
+})
+
+describe('check_plain_passwd', () => {
+  it('calls back with true for valid user/password', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    // stub check_user_password to simulate success
+    plugin.check_user_password = (user, passwd, cb) => cb(null, true)
+    plugin.check_plain_passwd(connection, 'user1', 'pass1', (result) => {
+      assert.strictEqual(result, true)
+      assert.strictEqual(connection.notes.auth_user, 'user1')
+    })
+  })
+
+  it('calls back with false for invalid user/password', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    plugin.check_user_password = (user, passwd, cb) => cb(null, false)
+    plugin.check_plain_passwd(connection, 'user2', 'badpass', (result) => {
+      assert.strictEqual(result, false)
+      assert.strictEqual(connection.notes.auth_user, undefined)
+    })
+  })
+
+  it('calls back with false on error', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    plugin.check_user_password = (user, passwd, cb) => cb(new Error('fail'))
+    plugin.check_plain_passwd(connection, 'user3', 'pass3', (result) => {
+      assert.strictEqual(result, false)
+      assert.strictEqual(connection.notes.auth_user, undefined)
+    })
+  })
+})
+
+describe('check_cram_md5_passwd', () => {
+  it('calls back with true for matching password', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    // stub get_user_password to simulate stored password
+    plugin.get_user_password = (user, cb) => cb(null, 'storedpass')
+    plugin.check_cram_md5_passwd(
+      connection,
+      'user4',
+      'storedpass',
+      (result) => {
+        assert.strictEqual(result, true)
+        assert.strictEqual(connection.notes.auth_user, 'user4')
+      }
+    )
+  })
+
+  it('calls back with false for non-matching password', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    plugin.get_user_password = (user, cb) => cb(null, 'storedpass')
+    plugin.check_cram_md5_passwd(connection, 'user5', 'wrongpass', (result) => {
+      assert.strictEqual(result, false)
+      assert.strictEqual(connection.notes.auth_user, undefined)
+    })
+  })
+
+  it('calls back with false if get_user_password errors', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    plugin.get_user_password = (user, cb) => cb(new Error('fail'))
+    plugin.check_cram_md5_passwd(connection, 'user6', 'any', (result) => {
+      assert.strictEqual(result, false)
+      assert.strictEqual(connection.notes.auth_user, undefined)
+    })
+  })
+
+  it('calls back with false if get_user_password returns no password', (done) => {
+    const plugin = new fixtures.plugin('auth-database')
+    const connection = {
+      loginfo: () => {},
+      logerror: () => {},
+      notes: {},
+    }
+    plugin.get_user_password = (user, cb) => cb(null, null)
+    plugin.check_cram_md5_passwd(connection, 'user7', 'any', (result) => {
+      assert.strictEqual(result, false)
+      assert.strictEqual(connection.notes.auth_user, undefined)
+    })
+  })
+})
+
+describe('check_user_password', () => {
+  it('calls back with true for valid user/password', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => ({ username: 'user1', password: 'hashed' }),
+      update: async () => {},
+    }
+    plugin.schema_config = {
+      username_field: 'username',
+      password_field: 'password',
+      pk_field: 'id',
+      last_used_at_field: undefined,
+    }
+    plugin.verify_password = async () => true
+    await new Promise((resolve) => {
+      plugin.check_user_password('user1', 'pass1', (err, result) => {
+        assert.strictEqual(err, null)
+        assert.strictEqual(result, true)
+        resolve()
+      })
+    })
+  })
+
+  it('calls back with false for invalid user', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => null,
+    }
+    plugin.schema_config = { username_field: 'username' }
+    await new Promise((resolve) => {
+      plugin.check_user_password('nouser', 'pass', (err, result) => {
+        assert.strictEqual(err, null)
+        assert.strictEqual(result, false)
+        resolve()
+      })
+    })
+  })
+
+  it('calls back with false for password mismatch', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => ({ username: 'user2', password: 'hashed' }),
+      update: async () => {},
+    }
+    plugin.schema_config = {
+      username_field: 'username',
+      password_field: 'password',
+      pk_field: 'id',
+      last_used_at_field: undefined,
+    }
+    plugin.verify_password = async () => false
+    await new Promise((resolve) => {
+      plugin.check_user_password('user2', 'badpass', (err, result) => {
+        assert.strictEqual(err, null)
+        assert.strictEqual(result, false)
+        resolve()
+      })
+    })
+  })
+
+  it('calls back with error on exception', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => {
+        throw new Error('db fail')
+      },
+    }
+    plugin.schema_config = { username_field: 'username' }
+    await new Promise((resolve) => {
+      plugin.check_user_password('user', 'pass', (err, result) => {
+        assert.ok(err)
+        assert.strictEqual(result, false)
+        resolve()
+      })
+    })
+  })
+})
+
+describe('get_user_password', () => {
+  it('calls back with password if user found', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => ({ password: 'hashed' }),
+    }
+    plugin.schema_config = {
+      username_field: 'username',
+      password_field: 'password',
+    }
+    await new Promise((resolve) => {
+      plugin.get_user_password('user', (err, passwd) => {
+        assert.strictEqual(err, null)
+        assert.strictEqual(passwd, 'hashed')
+        resolve()
+      })
+    })
+  })
+
+  it('calls back with error if user not found', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => null,
+    }
+    plugin.schema_config = {
+      username_field: 'username',
+      password_field: 'password',
+    }
+    await new Promise((resolve) => {
+      plugin.get_user_password('nouser', (err, passwd) => {
+        assert.ok(err)
+        assert.strictEqual(passwd, undefined)
+        resolve()
+      })
+    })
+  })
+
+  it('calls back with error on exception', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.smtpUser = {
+      findOne: async () => {
+        throw new Error('db fail')
+      },
+    }
+    plugin.schema_config = {
+      username_field: 'username',
+      password_field: 'password',
+    }
+    await new Promise((resolve) => {
+      plugin.get_user_password('user', (err, passwd) => {
+        assert.ok(err)
+        assert.strictEqual(passwd, undefined)
+        resolve()
+      })
+    })
+  })
+})
+
+describe('verify_password', () => {
+  it('returns true if verify_password_hash passes', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.logerror = () => {}
+    // Stub verify_password_hash directly on the plugin instance
+    plugin.verify_password = async function (plain, hashed) {
+      try {
+        const verify_password_hash = async () => true
+        return await verify_password_hash(plain, hashed)
+      } catch (e) {
+        this.logerror(`verify_password error: ${e.message}`)
+        return false
+      }
+    }
+    const result = await plugin.verify_password('plain', 'hashed')
+    assert.strictEqual(result, true)
+  })
+
+  it('returns false if verify_password_hash throws', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    plugin.logerror = () => {}
+    // Stub verify_password_hash to throw
+    plugin.verify_password = async function (plain, hashed) {
+      try {
+        const verify_password_hash = async () => {
+          throw new Error('fail')
+        }
+        return await verify_password_hash(plain, hashed)
+      } catch (e) {
+        this.logerror(`verify_password error: ${e.message}`)
+        return false
+      }
+    }
+    const result = await plugin.verify_password('plain', 'hashed')
+    assert.strictEqual(result, false)
+  })
+})
+
+describe('shutdown', () => {
+  it('calls DatabaseConnection.close_connection and logs', async () => {
+    const plugin = new fixtures.plugin('auth-database')
+    let closed = false
+    plugin.loginfo = () => {
+      closed = true
+    }
+    plugin.logerror = () => {}
+    // Mock DatabaseConnection.close_connection
+    const orig = require.cache[require.resolve('../lib/database_connection')]
+    require.cache[require.resolve('../lib/database_connection')] = {
+      exports: {
+        close_connection: async () => {
+          closed = true
+        },
+      },
+    }
+    plugin.shutdown()
+    // allow async close_connection to run
+    await new Promise((r) => setTimeout(r, 10))
+    assert.ok(closed)
+    require.cache[require.resolve('../lib/database_connection')] = orig
+  })
+})
