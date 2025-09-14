@@ -7,6 +7,12 @@ const SmtpUserFactory = require('./lib/entities/smtp_user')
 exports.register = function () {
   this.inherits('auth/auth_base')
   this.load_auth_database_ini()
+
+  if (this.cfg && this.cfg.main && this.cfg.main.enabled === false) {
+    this.loginfo('main.enabled is false, disabling authentication')
+    return
+  }
+
   this.register_hook('capabilities', 'advertise_auth')
   this.register_hook('mail', 'check_domain_authorization')
   this.initialize_database()
