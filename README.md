@@ -35,6 +35,7 @@ service haraka restart
 ### Schema Requirements
 
 The database must have a table containing at least:
+
 - A primary key field
 - Username field
 - Password field (hashed)
@@ -124,6 +125,7 @@ The plugin expects passwords to be stored as hashes. Supported formats:
 - Scrypt
 
 Example hash formats:
+
 ```txt
 # Argon2
 $argon2id$v=19$m=65536,t=3,p=4$salt$hash
