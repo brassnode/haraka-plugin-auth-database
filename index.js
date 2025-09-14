@@ -4,6 +4,8 @@ const { verify_password_hash } = require('./lib/password_parser')
 const DatabaseConnection = require('./lib/database_connection')
 const SmtpUserFactory = require('./lib/entities/smtp_user')
 
+exports.name = 'auth/database'
+
 exports.register = function () {
   this.inherits('auth/auth_base')
   this.load_auth_database_ini()
