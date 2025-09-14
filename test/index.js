@@ -113,7 +113,7 @@ describe('advertise_auth', () => {
 })
 
 describe('check_plain_passwd', () => {
-  it('calls back with true for valid user/password', (done) => {
+  it('calls back with true for valid user/password', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
@@ -128,7 +128,7 @@ describe('check_plain_passwd', () => {
     })
   })
 
-  it('calls back with false for invalid user/password', (done) => {
+  it('calls back with false for invalid user/password', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
@@ -142,7 +142,7 @@ describe('check_plain_passwd', () => {
     })
   })
 
-  it('calls back with false on error', (done) => {
+  it('calls back with false on error', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
@@ -158,7 +158,7 @@ describe('check_plain_passwd', () => {
 })
 
 describe('check_cram_md5_passwd', () => {
-  it('calls back with true for matching password', (done) => {
+  it('calls back with true for matching password', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
@@ -178,7 +178,7 @@ describe('check_cram_md5_passwd', () => {
     )
   })
 
-  it('calls back with false for non-matching password', (done) => {
+  it('calls back with false for non-matching password', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
@@ -192,7 +192,7 @@ describe('check_cram_md5_passwd', () => {
     })
   })
 
-  it('calls back with false if get_user_password errors', (done) => {
+  it('calls back with false if get_user_password errors', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
@@ -206,7 +206,7 @@ describe('check_cram_md5_passwd', () => {
     })
   })
 
-  it('calls back with false if get_user_password returns no password', (done) => {
+  it('calls back with false if get_user_password returns no password', () => {
     const plugin = new fixtures.plugin('auth-database')
     const connection = {
       loginfo: () => {},
