@@ -1,7 +1,6 @@
 const assert = require('node:assert')
 const { beforeEach, describe, it } = require('node:test')
 const path = require('path')
-const sinon = require('sinon')
 
 const fixtures = require('haraka-test-fixtures')
 
