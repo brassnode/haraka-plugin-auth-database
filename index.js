@@ -2,7 +2,7 @@
 
 const { verify_password_hash } = require('./lib/password_parser')
 const DatabaseConnection = require('./lib/database_connection')
-const SmtpUser = require('./lib/entities/smtp_user')
+const SmtpUserFactory = require('./lib/entities/smtp_user')
 
 exports.register = function () {
   this.inherits('auth/auth_base')
@@ -21,14 +21,30 @@ exports.load_auth_database_ini = function () {
       this.load_auth_database_ini()
     }
   )
+
+  this.schema_config = {
+    users_table: this.cfg.schema.users_table || 'users',
+    pk_field: this.cfg.schema.pk_field || 'id',
+    pk_field_type: this.cfg.schema.pk_field_type || 'int',
+    username_field: this.cfg.schema.username_field || 'username',
+    password_field: this.cfg.schema.password_field || 'password',
+    last_used_at_field: this.cfg.schema.last_used_at_field || undefined,
+  }
 }
 
 exports.initialize_database = async function () {
-  const config = this.cfg.database
+  const SmtpUser = SmtpUserFactory(this.schema_config)
+  const entities = [SmtpUser]
+
   try {
-    this.data_source = await DatabaseConnection.get_data_source(config)
+    this.data_source = await DatabaseConnection.get_data_source(
+      this.cfg,
+      entities
+    )
     this.smtpUser = this.data_source.getRepository(SmtpUser)
-    this.loginfo(`connected to database at ${config.host}:${config.port}`)
+    this.loginfo(
+      `connected to database at ${this.cfg.database.host}:${this.cfg.database.port}`
+    )
   } catch (error) {
     this.logerror(`failed to initialize database: ${error.message}`)
   }
@@ -79,7 +95,7 @@ exports.check_user_password = async function (username, password, callback) {
   try {
     const user = await this.smtpUser.findOne({
       where: {
-        username: username,
+        [this.schema_config.username_field]: username,
         deleted_at: null,
       },
     })
@@ -91,10 +107,21 @@ exports.check_user_password = async function (username, password, callback) {
 
     this.loginfo(`user found: ${username}, checking password...`)
 
-    const passwordMatch = await this.verify_password(password, user.password)
+    const passwordMatch = await this.verify_password(
+      password,
+      user[this.schema_config.password_field]
+    )
 
     if (passwordMatch) {
-      await this.smtpUser.update({ id: user.id }, { last_used_at: new Date() })
+      // Only update last_used_at if the field is configured
+      if (this.schema_config.last_used_at_field) {
+        await this.smtpUser.update(
+          {
+            [this.schema_config.pk_field]: user[this.schema_config.pk_field],
+          },
+          { [this.schema_config.last_used_at_field]: new Date() }
+        )
+      }
       this.loginfo(`authentication successful for ${username}`)
     } else {
       this.loginfo(`authentication failed for ${username}`)
@@ -111,17 +138,16 @@ exports.get_user_password = async function (username, callback) {
   try {
     const user = await this.smtpUser.findOne({
       where: {
-        username: username,
-        deleted_at: null,
+        [this.schema_config.username_field]: username,
       },
-      select: ['password'],
+      select: [this.schema_config.password_field],
     })
 
     if (!user) {
       return callback(new Error('user not found'))
     }
 
-    callback(null, user.password)
+    callback(null, user[this.schema_config.password_field])
   } catch (error) {
     callback(error)
   }
