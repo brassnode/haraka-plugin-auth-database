@@ -15,13 +15,19 @@ exports.load_auth_database_ini = function () {
   this.cfg = this.config.get(
     'auth_database.ini',
     {
-      booleans: ['+main.enabled', '+database.logging'],
+      booleans: [
+        '+main.enabled',
+        '+database.logging',
+        '+domain_authorization.enabled',
+      ],
     },
     () => {
       this.load_auth_database_ini()
     }
   )
+}
 
+exports.initialize_database = async function () {
   this.schema_config = {
     users_table: this.cfg.schema.users_table || 'users',
     pk_field: this.cfg.schema.pk_field || 'id',
@@ -30,9 +36,7 @@ exports.load_auth_database_ini = function () {
     password_field: this.cfg.schema.password_field || 'password',
     last_used_at_field: this.cfg.schema.last_used_at_field || undefined,
   }
-}
 
-exports.initialize_database = async function () {
   const SmtpUser = SmtpUserFactory(this.schema_config)
   const entities = [SmtpUser]
 
