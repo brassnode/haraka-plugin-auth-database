@@ -1,11 +1,12 @@
 {
   "name": "haraka-plugin-auth-database",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Haraka auth plugin that authenticate users using database",
   "main": "index.js",
   "files": [
     "CHANGELOG.md",
-    "config"
+    "config",
+    "lib"
   ],
   "scripts": {
     "format": "npm run prettier:fix && npm run lint:fix",
