@@ -96,7 +96,6 @@ exports.check_user_password = async function (username, password, callback) {
     const user = await this.smtpUser.findOne({
       where: {
         [this.schema_config.username_field]: username,
-        deleted_at: null,
       },
     })
 
