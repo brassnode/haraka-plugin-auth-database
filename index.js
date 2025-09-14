@@ -8,6 +8,7 @@ exports.register = function () {
   this.inherits('auth/auth_base')
   this.load_auth_database_ini()
   this.register_hook('capabilities', 'advertise_auth')
+  this.register_hook('mail', 'check_domain_authorization')
   this.initialize_database()
 }
 
@@ -164,6 +165,34 @@ exports.verify_password = async function (plain_password, hashed_password) {
     this.logerror(`password verification error: ${error.message}`)
     return false
   }
+}
+
+exports.check_domain_authorization = function (next, connection, params) {
+  const txn = connection.transaction
+  if (!txn) return next()
+
+  const mail_from = params[0].address() // MAIL FROM
+  const mail_domain = mail_from.split('@')[1]
+
+  const auth_user = connection.notes.auth_user
+  if (!auth_user) {
+    txn.results.add(this, { fail: 'unauthenticated user trying to send mail' })
+    return next(DENY, 'Authentication required')
+  }
+
+  if (!this.cfg.domain_authorization.enabled) {
+    connection.loginfo(this, 'Domain authorization not enabled, allowing send')
+    return next()
+  }
+
+  // enforce that the sender domain matches the authenticated domain
+  const user_domain = auth_user.split('@')[1]
+  if (mail_domain.toLowerCase() !== user_domain.toLowerCase()) {
+    txn.results.add(this, { fail: 'sender domain does not match auth domain' })
+    return next(DENY, 'You are not allowed to send as this domain')
+  }
+
+  return next()
 }
 
 exports.shutdown = function () {

@@ -19,7 +19,7 @@ This plugin implements SMTP authentication (AUTH) with support for multiple data
 
 ```sh
 cd /path/to/local/haraka
-npm install @brassnode/haraka-plugin-auth-database
+npm install haraka-plugin-auth-database
 echo "auth-database" >> config/plugins
 service haraka restart
 ```

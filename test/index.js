@@ -395,6 +395,110 @@ describe('verify_password', () => {
   })
 })
 
+describe('check_domain_authorization', () => {
+  function makeTxn() {
+    return {
+      results: {
+        add: function (plugin, obj) {
+          this._added = obj
+        },
+        _added: null,
+      },
+    }
+  }
+
+  it('denies if not authenticated', () => {
+    return new Promise((resolve) => {
+      const plugin = new fixtures.plugin('auth-database')
+      plugin.cfg = { domain_authorization: { enabled: true } }
+      const connection = {
+        transaction: makeTxn(),
+        notes: {},
+        loginfo: () => {},
+      }
+      const params = [{ address: () => 'alice@example.com' }]
+      plugin.check_domain_authorization(
+        (code, msg) => {
+          assert.strictEqual(code, DENY)
+          assert.match(msg, /Authentication required/)
+          assert.deepEqual(connection.transaction.results._added, {
+            fail: 'unauthenticated user trying to send mail',
+          })
+          resolve()
+        },
+        connection,
+        params
+      )
+    })
+  })
+
+  it('allows if domain_authorization is disabled', () => {
+    return new Promise((resolve) => {
+      const plugin = new fixtures.plugin('auth-database')
+      plugin.cfg = { domain_authorization: { enabled: false } }
+      const connection = {
+        transaction: makeTxn(),
+        notes: { auth_user: 'alice@example.com' },
+        loginfo: () => {},
+      }
+      const params = [{ address: () => 'alice@example.com' }]
+      plugin.check_domain_authorization(
+        () => {
+          resolve()
+        },
+        connection,
+        params
+      )
+    })
+  })
+
+  it('allows if authenticated and domains match', () => {
+    return new Promise((resolve) => {
+      const plugin = new fixtures.plugin('auth-database')
+      plugin.cfg = { domain_authorization: { enabled: true } }
+      const connection = {
+        transaction: makeTxn(),
+        notes: { auth_user: 'alice@example.com' },
+        loginfo: () => {},
+      }
+      const params = [{ address: () => 'alice@example.com' }]
+      plugin.check_domain_authorization(
+        (code) => {
+          assert.strictEqual(code, undefined)
+          resolve()
+        },
+        connection,
+        params
+      )
+    })
+  })
+
+  it('denies if authenticated but domains do not match', () => {
+    return new Promise((resolve) => {
+      const plugin = new fixtures.plugin('auth-database')
+      plugin.cfg = { domain_authorization: { enabled: true } }
+      const connection = {
+        transaction: makeTxn(),
+        notes: { auth_user: 'alice@other.com' },
+        loginfo: () => {},
+      }
+      const params = [{ address: () => 'bob@example.com' }]
+      plugin.check_domain_authorization(
+        (code, msg) => {
+          assert.strictEqual(code, DENY)
+          assert.match(msg, /not allowed to send as this domain/)
+          assert.deepEqual(connection.transaction.results._added, {
+            fail: 'sender domain does not match auth domain',
+          })
+          resolve()
+        },
+        connection,
+        params
+      )
+    })
+  })
+})
+
 describe('shutdown', () => {
   it('calls DatabaseConnection.close_connection and logs', async () => {
     const plugin = new fixtures.plugin('auth-database')
